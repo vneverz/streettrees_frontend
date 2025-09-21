@@ -15,6 +15,7 @@ defineOptions({
     <div class="navbar-menu">
       <RouterLink to="/" class="nav-link">首頁</RouterLink>
       <RouterLink to="/about" class="nav-link">說明</RouterLink>
+      <RouterLink to="/upload" class="nav-link">上傳資料</RouterLink>
     </div>
   </nav>
 </template>
