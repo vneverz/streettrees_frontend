@@ -4,9 +4,9 @@ import Navbar from './components/Navbar.vue'
 
 <template>
   <div id="app">
-    <Navbar />
+    <Navbar /> <!-- 導入導航列 -->
     <main>
-      <RouterView />
+      <RouterView /> <!-- 導入路由視圖 -->
     </main>
   </div>
 </template>
