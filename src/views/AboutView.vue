@@ -20,6 +20,17 @@
           <p>
             透過這個平台，我們希望能夠提高公眾對城市綠化的認識，並促進對街樹保護的重視。
           </p>
+          <div class="guide-section">
+            <h3>📖 台北市民護樹指南</h3>
+            <p>
+              想要了解更多關於街樹保護的知識嗎？台北市政府提供了詳細的護樹指南，
+              幫助市民了解如何正確照顧和保護我們身邊的街樹。
+            </p>
+            <a href="https://www-ws.gov.taipei/Download.ashx?u=LzAwMS9VcGxvYWQvNjg2L3JlbGZpbGUvNTU0MzcvODMzODI5MC9lZmJhODgwNC1hM2NiLTRjN2EtODZkMC1iNjg4N2Q4ZDhlMGIucGRm&n=5qqU5qGIMS5wZGY%3d&icon=..pdf"
+              target="_blank" rel="noopener noreferrer" class="guide-link">
+              📄 下載台北市民護樹指南
+            </a>
+          </div>
         </section>
 
         <section class="section">
@@ -86,8 +97,11 @@
           </p>
           <div class="contact-info">
             <div class="contact-item">
-              <strong>電子郵件：</strong>
-              <span>contact@streettrees.tw</span>
+              <strong>Slack頻道：</strong>
+              <a href="https://g0v-tw.slack.com/archives/CQSH4F276" target="_blank" rel="noopener noreferrer"
+                class="slack-link">
+                g0v #tree
+              </a>
             </div>
             <div class="contact-item">
               <strong>專案網址：</strong>
@@ -225,6 +239,54 @@
 
 .contact-item span {
   color: #3498db;
+}
+
+.guide-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+}
+
+.guide-section h3 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+.guide-section p {
+  margin-bottom: 1rem;
+}
+
+.guide-link {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.guide-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4);
+  color: white;
+}
+
+.slack-link {
+  color: #3498db;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.slack-link:hover {
+  color: #2980b9;
+  text-decoration: underline;
 }
 
 @media (max-width: 768px) {
