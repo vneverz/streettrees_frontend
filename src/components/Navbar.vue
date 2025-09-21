@@ -10,7 +10,7 @@ defineOptions({
 <template>
   <nav class="navbar">
     <div class="navbar-brand">
-      <RouterLink to="/" class="brand-link">街樹地圖</RouterLink>
+      <RouterLink to="/" class="brand-link">路樹地圖</RouterLink>
     </div>
     <div class="navbar-menu">
       <RouterLink to="/" class="nav-link">首頁</RouterLink>
