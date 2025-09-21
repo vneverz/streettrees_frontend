@@ -13,9 +13,29 @@ defineOptions({
       <RouterLink to="/" class="brand-link">路樹地圖</RouterLink>
     </div>
     <div class="navbar-menu">
-      <RouterLink to="/" class="nav-link">首頁</RouterLink>
-      <RouterLink to="/about" class="nav-link">說明</RouterLink>
-      <RouterLink to="/upload" class="nav-link">上傳資料</RouterLink>
+      <RouterLink to="/" class="nav-link">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <polyline points="9,22 9,12 15,12 15,22" />
+        </svg>
+        <span class="nav-text">首頁</span>
+      </RouterLink>
+      <RouterLink to="/about" class="nav-link">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        <span class="nav-text">說明</span>
+      </RouterLink>
+      <RouterLink to="/upload" class="nav-link">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7,14 12,9 17,14" />
+          <line x1="12" y1="9" x2="12" y2="21" />
+        </svg>
+        <span class="nav-text">上傳</span>
+      </RouterLink>
     </div>
   </nav>
 </template>
@@ -48,15 +68,19 @@ defineOptions({
 
 .navbar-menu {
   display: flex;
-  gap: 2rem;
+  gap: 1rem;
 }
 
 .nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   color: white;
   text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: background-color 0.3s ease;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  min-width: 60px;
 }
 
 .nav-link:hover {
@@ -65,5 +89,74 @@ defineOptions({
 
 .nav-link.router-link-active {
   background-color: #3498db;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  margin-bottom: 2px;
+}
+
+.nav-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* 手機版RWD */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0.75rem 1rem;
+    justify-content: center;
+  }
+
+  .navbar-brand {
+    display: none;
+  }
+
+  .navbar-menu {
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: space-around;
+  }
+
+  .nav-link {
+    padding: 0.5rem 0.25rem;
+    min-width: 50px;
+  }
+
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-text {
+    font-size: 0.7rem;
+  }
+}
+
+/* 超小螢幕 */
+@media (max-width: 480px) {
+  .navbar {
+    padding: 0.5rem 0.5rem;
+  }
+
+  .navbar-menu {
+    gap: 0.25rem;
+  }
+
+  .nav-link {
+    padding: 0.4rem 0.2rem;
+    min-width: 45px;
+  }
+
+  .nav-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .nav-text {
+    font-size: 0.65rem;
+  }
 }
 </style>
