@@ -112,23 +112,44 @@ function detectLocation() {
   )
 }
 
-function handleSubmit() {
+async function handleSubmit() {
   if (!form.value.location || !form.value.district || form.value.longitude === null || form.value.latitude === null) {
     alert('請填寫必填欄位：地點、行政區、經度、緯度')
     return
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(form.value))
-  savedData.value = { ...form.value }
-  // 清空表單
-  form.value = {
-    species: '',
-    age: null,
-    location: '',
-    district: '',
-    photo: null,
-    description: '',
-    longitude: null,
-    latitude: null
+  try {
+    // 對應後端 lat/lng 欄位
+    const payload = {
+      species: form.value.species,
+      age: form.value.age,
+      location: form.value.location,
+      district: form.value.district,
+      photo: form.value.photo,
+      description: form.value.description,
+      lat: form.value.latitude,
+      lng: form.value.longitude
+    }
+    const res = await fetch('https://streettrees-backend.vneverz.workers.dev/trees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    if (!res.ok) throw new Error(await res.text())
+    alert('已成功上傳到後端')
+    savedData.value = { ...form.value }
+    // 清空表單
+    form.value = {
+      species: '',
+      age: null,
+      location: '',
+      district: '',
+      photo: null,
+      description: '',
+      longitude: null,
+      latitude: null
+    }
+  } catch (e) {
+    alert('上傳失敗: ' + e)
   }
 }
 </script>
