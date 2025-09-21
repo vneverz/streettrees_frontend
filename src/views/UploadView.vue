@@ -18,6 +18,15 @@
         <label for="district">行政區（必填，包含縣市）：</label>
         <input id="district" v-model="form.district" type="text" required placeholder="如：台北市信義區" />
       </div>
+      <div class="form-group required">
+        <label for="longitude">經度 X：</label>
+        <input id="longitude" v-model="form.longitude" type="number" step="any" required placeholder="自動偵測或手動填寫" />
+      </div>
+      <div class="form-group required">
+        <label for="latitude">緯度 Y：</label>
+        <input id="latitude" v-model="form.latitude" type="number" step="any" required placeholder="自動偵測或手動填寫" />
+        <button type="button" @click="detectLocation" style="margin-top:0.5rem;">偵測目前位置</button>
+      </div>
       <div class="form-group">
         <label for="photo">照片：</label>
         <input id="photo" type="file" accept="image/*" @change="handlePhotoUpload" />
@@ -48,6 +57,8 @@ interface UploadForm {
   district: string
   photo: string | null
   description: string
+  longitude: number | null
+  latitude: number | null
 }
 
 const STORAGE_KEY = 'user_upload_data'
@@ -57,7 +68,9 @@ const form = ref<UploadForm>({
   location: '',
   district: '',
   photo: null,
-  description: ''
+  description: '',
+  longitude: null,
+  latitude: null
 })
 const savedData = ref<any>(null)
 
@@ -83,9 +96,25 @@ function handlePhotoUpload(e: Event) {
   }
 }
 
+function detectLocation() {
+  if (!navigator.geolocation) {
+    alert('瀏覽器不支援定位功能')
+    return
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      form.value.longitude = pos.coords.longitude
+      form.value.latitude = pos.coords.latitude
+    },
+    (err) => {
+      alert('定位失敗: ' + err.message)
+    }
+  )
+}
+
 function handleSubmit() {
-  if (!form.value.location || !form.value.district) {
-    alert('請填寫必填欄位：地點與行政區')
+  if (!form.value.location || !form.value.district || form.value.longitude === null || form.value.latitude === null) {
+    alert('請填寫必填欄位：地點、行政區、經度、緯度')
     return
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(form.value))
@@ -97,7 +126,9 @@ function handleSubmit() {
     location: '',
     district: '',
     photo: null,
-    description: ''
+    description: '',
+    longitude: null,
+    latitude: null
   }
 }
 </script>
