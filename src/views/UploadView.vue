@@ -231,24 +231,62 @@ async function uploadToS3(file: File): Promise<string> {
   return uploadUrl.split('?')[0]
 }
 
-function detectLocation() {
+async function detectLocation() {
   if (!navigator.geolocation) {
     alert('瀏覽器不支援定位功能')
     return
   }
   isDetecting.value = true
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      form.value.lng = Number(pos.coords.longitude)
-      form.value.lat = Number(pos.coords.latitude)
-      isDetecting.value = false
-    },
-    (err) => {
-      isDetecting.value = false
-      alert('定位失敗: ' + err.message)
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  )
+
+  try {
+    // If Permissions API is available, check status first so we can show a friendlier message
+    // We can't rely on a specific TS type for the Permissions API in all environments,
+    // so access it as an unknown and perform runtime checks below.
+    const permissions = (navigator as unknown as { permissions?: unknown }).permissions as
+      | { query: (p: { name: string }) => Promise<{ state: string }> }
+      | undefined
+    if (permissions && typeof permissions.query === 'function') {
+      try {
+        const status = await permissions.query({ name: 'geolocation' })
+        if (status.state === 'denied') {
+          // Browser has blocked geolocation — instruct user to enable it
+          alert('瀏覽器已阻止定位權限。請在瀏覽器設定中允許定位，或重新載入並允許定位後再試一次。')
+          return
+        }
+        // if 'prompt' or 'granted', calling getCurrentPosition will either show the browser prompt or return coords
+      } catch {
+        // ignore permission query errors and fall back to calling getCurrentPosition
+      }
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        form.value.lng = Number(pos.coords.longitude)
+        form.value.lat = Number(pos.coords.latitude)
+        isDetecting.value = false
+      },
+      (err) => {
+        isDetecting.value = false
+        // Provide friendlier messaging for common errors
+        if (err && err.code === 1) {
+          // PERMISSION_DENIED
+          alert('使用者拒絕定位：請在瀏覽器提示中允許定位或在瀏覽器設定中啟用定位後重試。')
+        } else if (err && err.code === 2) {
+          // POSITION_UNAVAILABLE
+          alert('定位失敗：無法取得位置資訊，請確認裝置定位功能是否開啟。')
+        } else if (err && err.code === 3) {
+          // TIMEOUT
+          alert('定位逾時：請稍後重試或確認網路/定位狀態。')
+        } else {
+          alert('定位失敗: ' + (err?.message || '未知錯誤'))
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  } finally {
+    // ensure flag is reset if permission-api branch returned early
+    if (isDetecting.value) isDetecting.value = false
+  }
 }
 
 function handleAllow() {
