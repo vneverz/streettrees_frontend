@@ -10,10 +10,16 @@
       </div>
     </div>
 
+    <div v-if="showGrantHint" class="grant-hint">
+      <span>已允許定位，請按「偵測目前位置」按鈕以填入經緯度</span>
+      <button type="button" class="close-hint" @click="showGrantHint = false">✕</button>
+    </div>
+
     <form @submit.prevent="handleSubmit">
-      <div class="form-group">
+      <div class="form-group required">
         <label for="name">樹名（顯示名稱）：</label>
-        <input id="name" v-model="form.name" type="text" placeholder="如：樹王" />
+        <input id="name" v-model="form.name" @input="nameError = null" required type="text" placeholder="如：樹王" />
+        <div v-if="nameError" class="error">{{ nameError }}</div>
       </div>
 
       <div class="form-group">
@@ -57,7 +63,7 @@
         <textarea id="desc" v-model="form.description" rows="3" placeholder="請描述樹木狀況"></textarea>
       </div>
 
-      <button type="submit">上傳到後端</button>
+      <button type="submit" :disabled="!form.name || uploadInProgress" :title="(!form.name ? '請先填寫樹名' : (uploadInProgress ? '上傳中...' : ''))">上傳到後端</button>
     </form>
 
     <div v-if="savedData" class="saved-info">
@@ -123,7 +129,6 @@ onMounted(() => {
   // 根據 session 或本地持久化的選擇決定是否自動偵測
   if (permission.value === 'granted') {
     showPermissionPrompt.value = false
-    detectLocation()
   } else if (permission.value === 'denied') {
     showPermissionPrompt.value = false
   } else {
@@ -139,6 +144,8 @@ onMounted(() => {
 })
 
 const selectedFile = ref<File | null>(null)
+const nameError = ref<string | null>(null)
+const showGrantHint = ref(false)
 
 function handlePhotoUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
@@ -184,6 +191,46 @@ async function uploadToCloudflare(file: File): Promise<string> {
   throw new Error('No usable URL returned from Cloudflare')
 }
 
+async function uploadToS3(file: File): Promise<string> {
+  const presignEndpoint = import.meta.env.VITE_S3_PRESIGN_URL
+  if (!presignEndpoint) throw new Error('S3 presign endpoint not configured')
+
+  // Ask backend for a presigned upload URL (backend should return JSON { uploadUrl, publicUrl, method? })
+  const preRes = await fetch(presignEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name, contentType: file.type })
+  })
+  if (!preRes.ok) {
+    const txt = await preRes.text().catch(() => '')
+    throw new Error('Presign request failed: ' + txt)
+  }
+  const js = await preRes.json().catch(() => ({}))
+  const uploadUrl = js.uploadUrl || js.url
+  const publicUrl = js.publicUrl || js.objectUrl || js.public_url
+  const method = (js.method || 'PUT').toUpperCase()
+  if (!uploadUrl) throw new Error('Presign response missing uploadUrl')
+
+  // Perform the actual upload to the presigned URL
+  const uploadHeaders: Record<string, string> = {}
+  if (method === 'PUT') uploadHeaders['Content-Type'] = file.type || 'application/octet-stream'
+
+  const putRes = await fetch(uploadUrl, {
+    method,
+    headers: uploadHeaders,
+    body: file
+  })
+  if (!putRes.ok) {
+    const txt = await putRes.text().catch(() => '')
+    throw new Error('Upload to S3 failed: ' + txt)
+  }
+
+  // Return the public URL if backend provided one, otherwise derive from uploadUrl
+  if (publicUrl) return publicUrl
+  // strip query params from uploadUrl to get object URL (common for presigned PUT)
+  return uploadUrl.split('?')[0]
+}
+
 function detectLocation() {
   if (!navigator.geolocation) {
     alert('瀏覽器不支援定位功能')
@@ -210,7 +257,10 @@ function handleAllow() {
   localStorage.setItem(persistentPermissionKey, 'granted')
   permission.value = 'granted'
   showPermissionPrompt.value = false
-  detectLocation()
+  // show a small hint/toast telling user to press the detect button
+  showGrantHint.value = true
+  setTimeout(() => { showGrantHint.value = false }, 5000)
+
 }
 
 function handleDeny() {
@@ -230,10 +280,21 @@ const savedPhotoSrc = computed<string | null>(() => {
 })
 
 async function handleSubmit() {
+  // name 必填檢查
+  const nameTrim = (form.value.name || '').toString().trim()
+  if (!nameTrim) {
+    nameError.value = '請填寫樹名'
+    return
+  }
+  form.value.name = nameTrim
+
   if (!form.value.location || !form.value.district || form.value.lng === null || form.value.lat === null) {
     alert('請填寫必填欄位：地點、行政區、經度、緯度')
     return
   }
+  // 先定義後端 API
+  const TREES_API = 'https://streettrees-backend.vneverz.workers.dev/trees'
+
   // 建立 payload 符合後端格式
   const payload = {
     name: form.value.name,
@@ -248,12 +309,29 @@ async function handleSubmit() {
     created_at: new Date().toISOString().replace('T', ' ').slice(0, 19)
   }
 
+  // Debug: show payload that will be sent to backend (helps diagnose missing fields)
+  // Remove or lower verbosity in production
+  console.debug('Submitting payload to', TREES_API, payload)
+
   // 先嘗試 POST 到後端 API，若失敗則回退到 localStorage
-  const TREES_API = 'https://streettrees-backend.vneverz.workers.dev/trees'
-  // If there's a selected File and Cloudflare credentials exist, try uploading the image first
+  // If there's a selected File, prefer S3 presign flow if configured, then Cloudflare, lastly fallback to data URL
   if (selectedFile.value) {
+    const presignEndpoint = import.meta.env.VITE_S3_PRESIGN_URL
+    const hasS3 = !!presignEndpoint
     const hasCF = import.meta.env.VITE_CF_ACCOUNT_ID && import.meta.env.VITE_CF_API_TOKEN
-    if (hasCF) {
+
+    if (hasS3) {
+      uploadInProgress.value = true
+      try {
+        const url = await uploadToS3(selectedFile.value)
+        payload.photo = url
+      } catch (err) {
+        console.warn('S3 presign/upload failed, falling back:', err)
+        payload.photo = form.value.photo
+      } finally {
+        uploadInProgress.value = false
+      }
+    } else if (hasCF) {
       uploadInProgress.value = true
       try {
         const url = await uploadToCloudflare(selectedFile.value)
@@ -349,5 +427,29 @@ button {
   padding: 1rem;
   border-radius: 6px;
   color: #333;
+}
+
+.grant-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e6ffed;
+  border: 1px solid #b7f3c9;
+  color: #064e2a;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+}
+.grant-hint .close-hint {
+  background: transparent;
+  border: none;
+  color: #064e2a;
+  font-weight: bold;
+  cursor: pointer;
+}
+.error {
+  color: #c0392b;
+  margin-top: 0.25rem;
+  font-size: 0.9rem;
 }
 </style>
