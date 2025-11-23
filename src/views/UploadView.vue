@@ -1,6 +1,15 @@
 <template>
   <div class="upload-container">
     <h2>上傳資料</h2>
+    <!-- 問使用者是否允許自動偵測位置（只在尚未選擇時顯示） -->
+    <div v-if="showPermissionPrompt" class="permission-prompt">
+      <p>是否允許此頁面自動偵測您目前的位置，以便填入經緯度？</p>
+      <div class="prompt-actions">
+        <button type="button" @click="handleAllow">允許</button>
+        <button type="button" class="deny" @click="handleDeny">不同意</button>
+      </div>
+    </div>
+
     <form @submit.prevent="handleSubmit">
       <div class="form-group">
         <label for="species">樹種：</label>
@@ -37,18 +46,18 @@
       </div>
       <button type="submit">儲存到 localStorage</button>
     </form>
-    <div v-if="savedData" class="saved-info">
+      <div v-if="savedData" class="saved-info">
       <h3>已儲存資料：</h3>
-      <pre>{{ savedData }}</pre>
-      <div v-if="savedData.photo">
-        <img :src="savedData.photo" alt="上傳照片" style="max-width: 100%; margin-top: 1rem;" />
+      <pre>{{ formatSavedData }}</pre>
+      <div v-if="savedPhotoSrc">
+        <img :src="savedPhotoSrc" alt="上傳照片" style="max-width: 100%; margin-top: 1rem;" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 interface UploadForm {
   species: string
@@ -72,7 +81,18 @@ const form = ref<UploadForm>({
   longitude: null,
   latitude: null
 })
-const savedData = ref<any>(null)
+const savedData = ref<Record<string, unknown> | null>(null)
+
+// 權限與偵測狀態
+const showPermissionPrompt = ref(false)
+const isDetecting = ref(false)
+const permissionKey = 'geo_permission_session'
+// 持久化的 permission key（會存在 localStorage）
+const persistentPermissionKey = 'geo_permission'
+// promptShownKey：表示是否已經顯示過提示（只要顯示過一次就不再顯示）
+const promptShownKey = 'geo_prompt_shown'
+// 先檢查 sessionStorage，沒有則檢查 localStorage（持久化）
+const permission = ref<string | null>(sessionStorage.getItem(permissionKey) ?? localStorage.getItem(persistentPermissionKey))
 
 onMounted(() => {
   const data = localStorage.getItem(STORAGE_KEY)
@@ -80,7 +100,24 @@ onMounted(() => {
     try {
       savedData.value = JSON.parse(data)
     } catch {
-      savedData.value = data
+      savedData.value = data as unknown as Record<string, unknown>
+    }
+  }
+
+  // 根據 session 或本地持久化的選擇決定是否自動偵測
+  if (permission.value === 'granted') {
+    showPermissionPrompt.value = false
+    detectLocation()
+  } else if (permission.value === 'denied') {
+    showPermissionPrompt.value = false
+  } else {
+    // 尚未有明確選擇：只在第一次載入（未顯示過提示）時顯示提示
+    const shown = localStorage.getItem(promptShownKey)
+    if (!shown) {
+      showPermissionPrompt.value = true
+      localStorage.setItem(promptShownKey, 'true')
+    } else {
+      showPermissionPrompt.value = false
     }
   }
 })
@@ -101,55 +138,63 @@ function detectLocation() {
     alert('瀏覽器不支援定位功能')
     return
   }
+  isDetecting.value = true
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      form.value.longitude = pos.coords.longitude
-      form.value.latitude = pos.coords.latitude
+      form.value.longitude = Number(pos.coords.longitude)
+      form.value.latitude = Number(pos.coords.latitude)
+      isDetecting.value = false
     },
     (err) => {
+      isDetecting.value = false
       alert('定位失敗: ' + err.message)
-    }
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
   )
 }
 
-async function handleSubmit() {
+function handleAllow() {
+  // 記錄在 sessionStorage（本次 session）與 localStorage（持久化）
+  sessionStorage.setItem(permissionKey, 'granted')
+  localStorage.setItem(persistentPermissionKey, 'granted')
+  permission.value = 'granted'
+  showPermissionPrompt.value = false
+  detectLocation()
+}
+
+function handleDeny() {
+  sessionStorage.setItem(permissionKey, 'denied')
+  permission.value = 'denied'
+  showPermissionPrompt.value = false
+}
+
+const formatSavedData = computed(() => {
+  return savedData.value ? JSON.stringify(savedData.value, null, 2) : ''
+})
+
+const savedPhotoSrc = computed<string | null>(() => {
+  if (!savedData.value) return null
+  const p = (savedData.value as Record<string, unknown>).photo
+  return typeof p === 'string' ? p : null
+})
+
+function handleSubmit() {
   if (!form.value.location || !form.value.district || form.value.longitude === null || form.value.latitude === null) {
     alert('請填寫必填欄位：地點、行政區、經度、緯度')
     return
   }
-  try {
-    // 對應後端 lat/lng 欄位
-    const payload = {
-      species: form.value.species,
-      age: form.value.age,
-      location: form.value.location,
-      district: form.value.district,
-      photo: form.value.photo,
-      description: form.value.description,
-      lat: form.value.latitude,
-      lng: form.value.longitude
-    }
-    const res = await fetch('https://streettrees-backend.vneverz.workers.dev/trees', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    if (!res.ok) throw new Error(await res.text())
-    alert('已成功上傳到後端')
-    savedData.value = { ...form.value }
-    // 清空表單
-    form.value = {
-      species: '',
-      age: null,
-      location: '',
-      district: '',
-      photo: null,
-      description: '',
-      longitude: null,
-      latitude: null
-    }
-  } catch (e) {
-    alert('上傳失敗: ' + e)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(form.value))
+  savedData.value = { ...form.value }
+  // 清空表單
+  form.value = {
+    species: '',
+    age: null,
+    location: '',
+    district: '',
+    photo: null,
+    description: '',
+    longitude: null,
+    latitude: null
   }
 }
 </script>
