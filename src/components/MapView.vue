@@ -18,8 +18,9 @@ L.Icon.Default.mergeOptions({
 
 const mapContainer = ref<HTMLElement>()
 let map: L.Map | null = null
+const markers: L.Marker[] = []
 
-// 樣稿街樹數據
+// 樣稿街樹數據（回退用）
 const sampleTrees = [
   {
     id: 1,
@@ -88,6 +89,73 @@ const sampleTrees = [
     plantedDate: '2017-04-08'
   }
 ]
+// 後端 API（Cloudflare Worker）
+const TREES_API = 'https://streettrees-backend.vneverz.workers.dev/trees'
+
+function clearMarkers() {
+  markers.forEach(m => m.remove())
+  markers.length = 0
+}
+
+function addTreesToMap(trees: Array<Record<string, unknown>>) {
+  if (!map) return
+  clearMarkers()
+  trees.forEach(t => {
+    const item = t as Record<string, unknown>
+    const lat = Number(item.lat as unknown)
+    const lng = Number(item.lng as unknown)
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const name = String(item.name ?? '無名')
+      const species = String(item.species ?? '')
+      const age = item.age ?? ''
+      const location = String(item.location ?? '')
+      const district = String(item.district ?? '')
+      const photo = String(item.photo ?? '')
+      const createdAt = String(item.created_at ?? '')
+      const description = String(item.description ?? '')
+
+      const treeIcon = L.divIcon({
+        className: 'custom-tree-icon',
+        html: `<div class="tree-marker">\n                 <div class="tree-icon">🌳</div>\n                 <div class="tree-name">${name}</div>\n               </div>`,
+        iconSize: [40, 50],
+        iconAnchor: [20, 50]
+      })
+
+      const marker = L.marker([lat, lng], { icon: treeIcon }).addTo(map!)
+      marker.bindPopup(`
+        <div class="tree-popup">
+          <h3>${name}</h3>
+          <p><strong>學名：</strong>${species}</p>
+          <p><strong>樹齡：</strong>${age}</p>
+          <p><strong>地點：</strong>${location}</p>
+          <p><strong>行政區：</strong>${district}</p>
+          <p><strong>上傳時間：</strong>${createdAt}</p>
+          <p><strong>描述：</strong>${description}</p>
+          ${photo ? `<div style="margin-top:0.5rem;"><img src="${photo}" alt="photo" style="max-width:200px;" /></div>` : ''}
+        </div>
+      `)
+      markers.push(marker)
+    }
+  })
+}
+
+async function loadTreesFromBackend() {
+  try {
+    const res = await fetch(TREES_API)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    if (Array.isArray(data)) {
+      addTreesToMap(data)
+    } else {
+      console.warn('trees API did not return array, using sample data')
+      addTreesToMap(sampleTrees as Array<Record<string, unknown>>)
+    }
+  } catch (err) {
+    console.error('Failed to load trees from backend:', err)
+    // fallback to sample data
+    addTreesToMap(sampleTrees as Array<Record<string, unknown>>)
+  }
+}
 
 onMounted(() => {
   if (mapContainer.value) {
@@ -99,35 +167,9 @@ onMounted(() => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map)
 
-    // 添加街樹標記
-    sampleTrees.forEach(tree => {
-      // 創建自定義圖標
-      const treeIcon = L.divIcon({
-        className: 'custom-tree-icon',
-        html: `<div class="tree-marker">
-                 <div class="tree-icon">🌳</div>
-                 <div class="tree-name">${tree.name}</div>
-               </div>`,
-        iconSize: [40, 50],
-        iconAnchor: [20, 50]
-      })
-
-      // 創建標記
-      const marker = L.marker([tree.lat, tree.lng], { icon: treeIcon })
-        .addTo(map!)
-
-      // 添加彈出視窗
-      marker.bindPopup(`
-        <div class="tree-popup">
-          <h3>${tree.name}</h3>
-          <p><strong>學名：</strong>${tree.species}</p>
-          <p><strong>樹齡：</strong>${tree.age}年</p>
-          <p><strong>健康狀況：</strong>${tree.health}</p>
-          <p><strong>種植日期：</strong>${tree.plantedDate}</p>
-          <p><strong>描述：</strong>${tree.description}</p>
-        </div>
-      `)
-    })
+    // 先顯示 sample 樣本，接著向後端取真實資料
+    addTreesToMap(sampleTrees as Array<Record<string, unknown>>)
+    loadTreesFromBackend()
   }
 })
 </script>
